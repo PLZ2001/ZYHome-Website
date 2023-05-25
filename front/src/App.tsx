@@ -5,8 +5,9 @@ import '@chatui/core/es/styles/index.less';
 import './chatui-theme.css';
 import './chatui-index.css';
 import Chat, {Bubble, MessageProps, QuickReplyItemProps, useMessages} from '@chatui/core';
+import {Marked} from '@ts-stack/markdown';
 
-import axios from 'axios';
+import reactToText from 'react-to-text';
 
 const { Header, Footer, Content } = Layout;
 
@@ -34,6 +35,7 @@ function App() {
             case "1" : return ipaddress_page();
             case "2" : return pcmonitor_page();
             case "3" : return chatgpt_page();
+            case "4" : return newbing_page();
             default : return tools_page();
         }
     }
@@ -56,8 +58,8 @@ function App() {
         return (
             <Card
                 hoverable
-                style={{width:"-moz-max-content", textAlign:"center", backgroundImage:"https://i2.wp.com/www.lowpolygonart.com/wp-content/uploads/2017/12/Timber-500-Vertices.jpeg?zoom=2&fit=840%2C525"}}
-                cover={<img alt="example" src="https://i2.wp.com/www.lowpolygonart.com/wp-content/uploads/2017/12/Timber-500-Vertices.jpeg?zoom=2&fit=840%2C525" />}
+                style={{width:"-moz-max-content", textAlign:"center", backgroundImage:'http://'+url+':3001/tools/wallpaper-IPAddress.png'}}
+                cover={<img alt="IPAddress" src={'http://'+url+':3001/tools/wallpaper-IPAddress.png'} />}
                 onClick={(e) => {add("服务器IP地址获取", "1");}}
             >
                 <Meta title="服务器IP地址获取" description="获取服务器的最新IPV4和IPV6地址"/>
@@ -148,8 +150,8 @@ function App() {
         return (
             <Card
                 hoverable
-                style={{width:"-moz-max-content", textAlign:"center", backgroundImage:"https://i2.wp.com/www.lowpolygonart.com/wp-content/uploads/2017/12/Timber-500-Vertices.jpeg?zoom=2&fit=840%2C525"}}
-                cover={<img alt="example" src="https://i1.wp.com/www.lowpolygonart.com/wp-content/uploads/2017/12/Shore-500-Vertices.jpeg?zoom=2&fit=840%2C525" />}
+                style={{width:"-moz-max-content", textAlign:"center", backgroundImage:'http://'+url+':3001/tools/wallpaper-PCMonitor.png'}}
+                cover={<img alt="PCMonitor" src={'http://'+url+':3001/tools/wallpaper-PCMonitor.png'} />}
                 onClick={(e) => {add("服务器状态监控", "2");}}
             >
                 <Meta title="服务器状态监控" description="监控服务器的实时状态"/>
@@ -236,12 +238,12 @@ function App() {
     // 参数：{"message":字符串}
     // 返回：{"text":字符串}
     const [chatgpt, setchatgpt] = useState({text:""});
-    const [searchSwitch, setsearchSwitch] = useState(false);
+    const [searchSwitch_chatgpt, setsearchSwitch_chatgpt] = useState(false);
     const chatgpt_api = async (message: string) => {
-        if (searchSwitch) {
+        if (searchSwitch_chatgpt) {
             try {//部署时localhost改为psplhl-pc.dynv6.net
-                setTyping(true);
-                const keyword_command = "我要在网络上搜索“" + message + "”，你建议搜索什么关键词？请将所有关键词置入一对[]符号之中，如果有多个关键词，请用|分隔，就像这样[关键词1|关键词2]，不要回复多余的话，不要解释，[]符号有且只能有一对。"
+                setTyping_chatgpt(true);
+                const keyword_command = "如果我要借助网络搜索引擎回答“"+message+"”这个问题，你建议我搜索什么内容？请直接回答搜索内容，并用[]作为起止符号，例如[搜索内容]。不用回复多余的话，不要做解释。"
                 console.log("正在询问关键词")
                 const keyword_response = await fetch('http://'+url+':3001/tools/chatgpt',
                     {method: 'POST',
@@ -251,7 +253,7 @@ function App() {
                             'Content-Type': 'application/json',
                             'Access-Control-Allow-Origin': '*',
                         },
-                        body: JSON.stringify({"message":keyword_command})})
+                        body: JSON.stringify({"message":keyword_command, "id":"keyword"})})
                 const keyword_result = await keyword_response.json()
                 console.log("询问结果是：" + keyword_result.text)
                 let max_search = 5
@@ -261,9 +263,10 @@ function App() {
                     console.log(keywords)
                     let search_words = []
                     let search_results = []
-                    for (let i = 0; i < keywords.length; i++) {
+                    for (let i = 0; i < Math.min(keywords.length, 2); i++) {
                         console.log("正在检查关键字：" + keywords[i])
-                        const response = await fetch('http://' + url + ':3001/tools/request',
+                        search_words.push(keywords[i])
+                        const baidusearch = await fetch('http://' + url + ':3001/tools/baidusearch',
                             {
                                 method: 'POST',
                                 mode: 'cors',
@@ -272,58 +275,124 @@ function App() {
                                     'Content-Type': 'application/json',
                                     'Access-Control-Allow-Origin': '*',
                                 },
-                                body: JSON.stringify({"url": "https://baike.baidu.com/api/searchui/suggest?wd=" + keywords[i] + "&enc=utf8"})
+                                body: JSON.stringify({"keyword": keywords[i]})
                             })
-                        const result_ = await response.json()
-                        const result = result_.json
-                        const suggest_result = JSON.parse(result)
-                        if ("list" in suggest_result) {
-                            if (suggest_result.list.length > 0) {
-                                for (let j = 0; j < suggest_result.list.length; j++) {
-                                    if (search_words.indexOf(suggest_result.list[j].lemmaTitle) != -1) {
-                                        continue
-                                    }
-                                    if (max_search > 0){
-                                        max_search -= 1
-                                    } else {
-                                        continue
-                                    }
-                                    console.log("正在搜索：" + suggest_result.list[j].lemmaTitle)
-                                    const response = await fetch('http://' + url + ':3001/tools/request',
-                                        {
-                                            method: 'POST',
-                                            mode: 'cors',
-                                            headers: {
-                                                'Access-Control-Request-Headers': 'content-type;access-control-allow-origin',
-                                                'Content-Type': 'application/json',
-                                                'Access-Control-Allow-Origin': '*',
-                                            },
-                                            body: JSON.stringify({"url": "https://baike.baidu.com/api/openapi/BaikeLemmaCardApi?scope=103&format=json&appid=379020&bk_key=" + suggest_result.list[j].lemmaTitle + '&bk_length=600'})
-                                        })
-                                    const result_ = await response.json()
-                                    const result = result_.json
-                                    const search_result = JSON.parse(result)
-                                    if ("abstract" in search_result) {
-                                        search_words.push(suggest_result.list[j].lemmaTitle)
-                                        search_results.push(search_result.abstract)
-                                        console.log("搜索结果是：" + search_result.abstract)
-                                    }
-                                }
-                            }
-                        }
+                        const baidusearchresult = await baidusearch.json()
+                        search_results.push(baidusearchresult.text)
+                        // const response = await fetch('http://' + url + ':3001/tools/request',
+                        //     {
+                        //         method: 'POST',
+                        //         mode: 'cors',
+                        //         headers: {
+                        //             'Access-Control-Request-Headers': 'content-type;access-control-allow-origin',
+                        //             'Content-Type': 'application/json',
+                        //             'Access-Control-Allow-Origin': '*',
+                        //         },
+                        //         body: JSON.stringify({"url": "https://baike.baidu.com/api/searchui/suggest?wd=" + keywords[i] + "&enc=utf8"})
+                        //     })
+                        // const result_ = await response.json()
+                        // const result = result_.json
+                        // const suggest_result = JSON.parse(result)
+                        // if ("list" in suggest_result) {
+                        //     if (suggest_result.list.length > 0) {
+                        //         for (let j = 0; j < Math.min(suggest_result.list.length, 3); j++) {
+                        //             if (search_words.indexOf(suggest_result.list[j].lemmaTitle) != -1) {
+                        //                 continue
+                        //             }
+                        //             if (max_search > 0){
+                        //                 max_search -= 1
+                        //             } else {
+                        //                 continue
+                        //             }
+                        //             console.log("正在搜索：" + suggest_result.list[j].lemmaTitle)
+                        //             const response = await fetch('http://' + url + ':3001/tools/request',
+                        //                 {
+                        //                     method: 'POST',
+                        //                     mode: 'cors',
+                        //                     headers: {
+                        //                         'Access-Control-Request-Headers': 'content-type;access-control-allow-origin',
+                        //                         'Content-Type': 'application/json',
+                        //                         'Access-Control-Allow-Origin': '*',
+                        //                     },
+                        //                     body: JSON.stringify({"url": "https://baike.baidu.com/api/openapi/BaikeLemmaCardApi?scope=103&format=json&appid=379020&bk_key=" + suggest_result.list[j].lemmaTitle + '&bk_length=600'})
+                        //                 })
+                        //             const result_ = await response.json()
+                        //             const result = result_.json
+                        //             const search_result = JSON.parse(result)
+                        //             if ("abstract" in search_result) {
+                        //                 search_words.push(suggest_result.list[j].lemmaTitle)
+                        //                 search_results.push(search_result.abstract)
+                        //                 console.log("搜索结果是：" + search_result.abstract)
+                        //             }
+                        //         }
+                        //     }
+                        // }
 
                     }
 
                     let learn_command = ""
                     if (search_results.length > 0) {
-                        appendMsg({
+                        appendMsg_chatgpt({
                             type: 'text',
                             content: { text: "正在搜索【" + search_words.join("、") + "】..." },
                         });
-                        setTyping(true);
-                        learn_command = "（互联网为你准备了以下网络信息进行参考，请你在掌握这些网络信息的基础上合理回复我的消息，不要对这些网络信息本身进行回复和解释：" + search_results.map((value, index, array)=>"第"+(index+1).toString()+"条信息："+value).join("；") + "）现在，我的消息是："
+                        setTyping_chatgpt(true);
+                        const total_length_limit = 700
+                        let total_length = 0
+                        let length_group: number[] = []
+                        for (let j = 0; j < search_results.length; j++) {
+                            total_length += search_results[j].length
+                            length_group.push(search_results[j].length)
+                        }
+                        if (total_length > total_length_limit) {
+                            let length_limit: number[] = []
+                            let max = 0
+                            for (let j = 0; j < length_group.length; j++) {
+                                if (length_group[j] > max) {
+                                    max = length_group[j]
+                                }
+                            }
+                            let a = 0
+                            for (let j = 0; j < length_group.length; j++) {
+                                a += max - length_group[j]
+                            }
+                            const x = Math.ceil((a + total_length - total_length_limit) / length_group.length)
+                            for (let j = 0; j < length_group.length; j++) {
+                                length_limit[j] = x - (max - length_group[j])
+                            }
+                            let index = []
+                            for (let j = 0; j < length_group.length; j++) {
+                                index.push(j)
+                            }
+                            const sort_index = index.sort((j1,j2)=> {
+                                return length_limit[j2]-length_limit[j1]
+                            })
+                            let sum = 0
+                            let index_stop = 0
+                            for (let j = 0; j < length_group.length; j++) {
+                                sum += length_limit[sort_index[j]]
+                                if (sum >= total_length - total_length_limit) {
+                                    index_stop = j
+                                    break
+                                }
+                            }
+                            let length_limit_final: number[] = []
+                            for (let j = 0; j < length_group.length; j++) {
+                                length_limit_final.push(0)
+                            }
+                            for (let j = 0; j < length_group.length; j++) {
+                                if (j <= index_stop) {
+                                    length_limit_final[sort_index[j]] = length_limit[sort_index[j]]
+                                }
+                            }
+                            console.log(length_group)
+                            console.log(length_limit_final)
+                            learn_command = "（互联网为你准备了以下网络信息进行参考，请你学习这些网络信息，不要对这些网络信息本身进行回复和解释：" + search_results.map((value, index, array)=>{if (length_limit_final[index] ==0 ) {return "第"+(index+1).toString()+"条信息："+value} else {return "第"+(index+1).toString()+"条信息："+value.substring(0, value.length-length_limit_final[index])+"......"}}).join("；") + "）"
+                        } else {
+                            learn_command = "（互联网为你准备了以下网络信息进行参考，请你学习这些网络信息，不要对这些网络信息本身进行回复和解释：" + search_results.map((value, index, array)=>"第"+(index+1).toString()+"条信息："+value).join("；") + "）"
+                        }
                     }
-                    console.log(learn_command + message)
+                    console.log(message+learn_command)
                     const response = await fetch('http://'+url+':3001/tools/chatgpt',
                         {method: 'POST',
                             mode: 'cors',
@@ -332,19 +401,19 @@ function App() {
                                 'Content-Type': 'application/json',
                                 'Access-Control-Allow-Origin': '*',
                             },
-                            body: JSON.stringify({"message":learn_command+message})})
+                            body: JSON.stringify({"message":message+learn_command, "id":"normal"})})
                     const result = await response.json()
                     setchatgpt(result);
-                    setTyping(false);
+                    setTyping_chatgpt(false);
                     // 模拟回复消息
-                    appendMsg({
+                    appendMsg_chatgpt({
                         type: 'text',
                         content: { text: result.text },
                     });
                 } else if (keyword_result.text.indexOf("【") != -1) {
                     setchatgpt(keyword_result);
-                    setTyping(false);
-                    appendMsg({
+                    setTyping_chatgpt(false);
+                    appendMsg_chatgpt({
                         type: 'text',
                         content: { text: keyword_result.text },
                     });
@@ -357,12 +426,12 @@ function App() {
                                 'Content-Type': 'application/json',
                                 'Access-Control-Allow-Origin': '*',
                             },
-                            body: JSON.stringify({"message":message})})
+                            body: JSON.stringify({"message":message, "id":"normal"})})
                     const result = await response.json()
                     setchatgpt(result);
-                    setTyping(false);
+                    setTyping_chatgpt(false);
                     // 模拟回复消息
-                    appendMsg({
+                    appendMsg_chatgpt({
                         type: 'text',
                         content: { text: result.text },
                     });
@@ -372,7 +441,7 @@ function App() {
             }
         } else {
             try {
-                setTyping(true);
+                setTyping_chatgpt(true);
                 const response = await fetch('http://'+url+':3001/tools/chatgpt',
                     {method: 'POST',
                         mode: 'cors',
@@ -381,12 +450,12 @@ function App() {
                             'Content-Type': 'application/json',
                             'Access-Control-Allow-Origin': '*',
                         },
-                        body: JSON.stringify({"message":message})})
+                        body: JSON.stringify({"message":message, "id":"normal"})})
                 const result = await response.json()
                 setchatgpt(result);
-                setTyping(false);
+                setTyping_chatgpt(false);
                 // 模拟回复消息
-                appendMsg({
+                appendMsg_chatgpt({
                     type: 'text',
                     content: { text: result.text },
                 });
@@ -398,25 +467,25 @@ function App() {
         return (
             <Card
                 hoverable
-                style={{width:"-moz-max-content", textAlign:"center", backgroundImage:"https://i2.wp.com/www.lowpolygonart.com/wp-content/uploads/2017/12/Timber-500-Vertices.jpeg?zoom=2&fit=840%2C525"}}
-                cover={<img alt="example" src="https://i2.wp.com/www.lowpolygonart.com/wp-content/uploads/2017/12/Timber-500-Vertices.jpeg?zoom=2&fit=840%2C525" />}
+                style={{width:"-moz-max-content", textAlign:"center", backgroundImage:'http://'+url+':3001/tools/wallpaper-ChatGPT.png'}}
+                cover={<img alt="ChatGPT" src={'http://'+url+':3001/tools/wallpaper-ChatGPT.png'} />}
                 onClick={(e) => {add("ChatGPT", "3");}}
             >
                 <Meta title="ChatGPT" description="直接与ChatGPT对话"/>
             </Card>
         )
     }
-    const initialMessages = [
+    const initialMessages_chatgpt = [
         {
             type: 'text',
-            content: { text: '您好！我是ChatGPT Unofficial API聊天机器人~' },
-            user: { avatar: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/04/ChatGPT_logo.svg/1200px-ChatGPT_logo.svg.png' },
+            content: { text: '您好！我是ChatGPT！' },
+            user: { avatar: 'http://'+url+':3001/tools/image-ChatGPT.png' },
         },
     ];
     // 默认快捷短语，可选
-    const defaultQuickReplies = [
+    const defaultQuickReplies_chatgpt = [
         {
-            name: '百度百科搜索功能开关',
+            name: '百度搜索功能开关',
             isNew: true,
             isHighlight: true,
         },
@@ -438,12 +507,12 @@ function App() {
         },
     ];
     // 消息列表
-    const { messages, appendMsg, setTyping } = useMessages(initialMessages);
+    const { messages: messages_chatgpt, appendMsg: appendMsg_chatgpt, setTyping: setTyping_chatgpt } = useMessages(initialMessages_chatgpt);
 
     // 发送回调
-    async function handleSend(type:string, val:string) {
+    async function handleSend_chatgpt(type:string, val:string) {
         if (type === 'text' && val.trim()) {
-            appendMsg({
+            appendMsg_chatgpt({
                 type: 'text',
                 content: { text: val },
                 position: 'right',
@@ -453,23 +522,23 @@ function App() {
     }
 
     // 快捷短语回调，可根据 item 数据做出不同的操作，这里以发送文本消息为例
-    function handleQuickReplyClick(item: QuickReplyItemProps) {
-        if (item.name == "百度百科搜索功能开关")
+    function handleQuickReplyClick_chatgpt(item: QuickReplyItemProps) {
+        if (item.name == "百度搜索功能开关")
         {
-            setsearchSwitch(!searchSwitch)
-            appendMsg({
+            setsearchSwitch_chatgpt(!searchSwitch_chatgpt)
+            appendMsg_chatgpt({
                 type: 'text',
-                content: { text: (!searchSwitch)?"百度百科搜索功能开启":"百度百科搜索功能关闭"},
+                content: { text: (!searchSwitch_chatgpt)?"百度搜索功能开启":"百度搜索功能关闭"},
                 position: 'left',
             });
         } else if (typeof item.code == "string") {
-            handleSend('text', item.code);
+            handleSend_chatgpt('text', item.code);
         } else {
-            handleSend('text', item.name);
+            handleSend_chatgpt('text', item.name);
         }
     }
 
-    function renderMessageContent(msg: MessageProps) {
+    function renderMessageContent_chatgpt(msg: MessageProps) {
         const { type, content } = msg;
 
         // 根据消息类型来渲染
@@ -490,11 +559,132 @@ function App() {
         return (
             <Chat
                 navbar={{ title: 'ChatGPT' }}
-                messages={messages}
-                renderMessageContent={renderMessageContent}
-                quickReplies={defaultQuickReplies}
-                onQuickReplyClick={handleQuickReplyClick}
-                onSend={handleSend}
+                messages={messages_chatgpt}
+                renderMessageContent={renderMessageContent_chatgpt}
+                quickReplies={defaultQuickReplies_chatgpt}
+                onQuickReplyClick={handleQuickReplyClick_chatgpt}
+                onSend={handleSend_chatgpt}
+            />
+        )
+    }
+
+
+    // 功能4：NewBing
+    // url:./tools/newbing
+    // 参数：{"message":字符串}
+    // 返回：{"text":字符串}
+    const [newbing, setnewbing] = useState({text:""});
+    const newbing_api = async (message: string) => {
+        try {
+            setTyping_newbing(true);
+            const response = await fetch('http://'+url+':3001/tools/newbing',
+                {method: 'POST',
+                    mode: 'cors',
+                    headers: {
+                        'Access-Control-Request-Headers': 'content-type;access-control-allow-origin',
+                        'Content-Type': 'application/json',
+                        'Access-Control-Allow-Origin': '*',
+                    },
+                    body: JSON.stringify({"message":message})})
+            const result = await response.json()
+            setnewbing(result);
+            setTyping_newbing(false);
+            // 模拟回复消息
+            appendMsg_newbing({
+                type: 'text',
+                content: { text: (<div dangerouslySetInnerHTML={{ __html: Marked.parse(result.text)}}/>) },
+            });
+        } catch (error: any) {
+        }
+    }
+    const Newbing_card = () => {
+        return (
+            <Card
+                hoverable
+                style={{width:"-moz-max-content", textAlign:"center", backgroundImage:'http://'+url+':3001/tools/wallpaper-NewBing.png'}}
+                cover={<img alt="NewBing" src={'http://'+url+':3001/tools/wallpaper-NewBing.png'} />}
+                onClick={(e) => {add("NewBing", "4");}}
+            >
+                <Meta title="NewBing" description="直接与NewBing对话"/>
+            </Card>
+        )
+    }
+    const initialMessages_newbing = [
+        {
+            type: 'text',
+            content: { text: '您好！我是NewBing！' },
+            user: { avatar: 'http://'+url+':3001/tools/image-NewBing.png' },
+        },
+    ];
+    // 默认快捷短语，可选
+    const defaultQuickReplies_newbing = [
+        {
+            name: '充当英文修饰润色者',
+            code: '我想让你充当英语翻译员、拼写纠正员和改进员。我会用任何语言与你交谈，你会检测语言，翻译它并用我的文本的更正和改进版本用英语回答。我希望你用更优美优雅的高级英语单词和句子替换我简化的 A0 级单词和句子。保持相同的意思，但使它们更文艺。我要你只回复更正、改进，不要写任何解释。',
+        },
+        {
+            name: '担任机器学习工程师',
+            code: '我想让你担任机器学习工程师。我会写一些机器学习的概念，你的工作就是用通俗易懂的术语来解释它们。这可能包括提供构建模型的分步说明、使用视觉效果演示各种技术，或建议在线资源以供进一步研究。',
+        },
+        {
+            name: '担任院士',
+            code: '我要你演院士。您将负责研究您选择的主题，并以论文或文章的形式展示研究结果。您的任务是确定可靠的来源，以结构良好的方式组织材料并通过引用准确记录。',
+        },
+        {
+            name: '充当Linux终端',
+            code: '我想让你充当 Linux 终端。我将输入命令，您将回复终端应显示的内容。我希望您只在一个唯一的代码块内回复终端输出，而不是其他任何内容。不要写解释。除非我指示您这样做，否则不要键入命令。当我需要用英语告诉你一些事情时，我会把文字放在中括号内[就像这样]。',
+        },
+    ];
+    // 消息列表
+    const { messages: messages_newbing, appendMsg: appendMsg_newbing, setTyping: setTyping_newbing } = useMessages(initialMessages_newbing);
+
+    // 发送回调
+    async function handleSend_newbing(type:string, val:string) {
+        if (type === 'text' && val.trim()) {
+            appendMsg_newbing({
+                type: 'text',
+                content: { text: val },
+                position: 'right',
+            });
+            const reslut = await newbing_api(val);
+        }
+    }
+
+    // 快捷短语回调，可根据 item 数据做出不同的操作，这里以发送文本消息为例
+    function handleQuickReplyClick_newbing(item: QuickReplyItemProps) {
+        if (typeof item.code == "string") {
+            handleSend_newbing('text', item.code);
+        } else {
+            handleSend_newbing('text', item.name);
+        }
+    }
+
+    function renderMessageContent_newbing(msg: MessageProps) {
+        const { type, content } = msg;
+
+        // 根据消息类型来渲染
+        switch (type) {
+            case 'text':
+                return <Bubble content={content.text} />;
+            case 'image':
+                return (
+                    <Bubble type="image">
+                        <img src={content.picUrl} alt="" />
+                    </Bubble>
+                );
+            default:
+                return null;
+        }
+    }
+    const newbing_page = () => {
+        return (
+            <Chat
+                navbar={{ title: 'NewBing' }}
+                messages={messages_newbing}
+                renderMessageContent={renderMessageContent_newbing}
+                quickReplies={defaultQuickReplies_newbing}
+                onQuickReplyClick={handleQuickReplyClick_newbing}
+                onSend={handleSend_newbing}
             />
         )
     }
@@ -513,6 +703,9 @@ function App() {
                 </Col>
                 <Col span={col_span} style={{padding:8}}>
                     <Chatgpt_card/>
+                </Col>
+                <Col span={col_span} style={{padding:8}}>
+                    <Newbing_card/>
                 </Col>
             </Row>
         )

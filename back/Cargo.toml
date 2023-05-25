@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tokio = { version = "1", features = ["full"] } # 协程库
+#tokio = { version = "1", features = ["full"] } # 协程库
 warp = "0.3" # warp库
 log = "0.4" # 日志库
 pretty_env_logger = "0.4" # 日志库
@@ -21,7 +21,8 @@ sha256 = "1.1.2" # SHA256
 
 reqwest = { version = "0.11", features = ["json"]}
 
-[dependencies.pyo3]
-version = "0.18.1" # 调用python
-features = ["auto-initialize"]
+pyo3 = { version = "0.18", features = ["extension-module"] }
+pyo3-asyncio = { version = "0.18", features = ["attributes", "tokio-runtime"] }
+tokio = "1.9"
+
 
